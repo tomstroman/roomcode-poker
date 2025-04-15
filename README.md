@@ -48,11 +48,32 @@ pip install -r requirements.txt
 
 3. **Run the development server**
 
+To start the FastAPI development server with support for both REST and WebSocket endpoints:
+
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8193 --reload
+uvicorn app.main:fastapi_app --host 0.0.0.0 --port 8193 --reload
 ```
 
-You can now access the server locally at `http://localhost:8193`.
+By default, this will serve:
+- REST endpoints like `POST /create-game/` for game creation
+- WebSocket connections at `/ws/{room_code}/{player_id}/`
+- A minimal browser-based test interface at `/ws-test/` for connecting to a room and sending messages
+
+To try the test interface, start the server, open your browser, and visit:
+
+```
+http://localhost:8193/ws-test/
+```
+
+Use the form to:
+- Create a game (room code)
+- Enter a room code and player ID
+- Connect to the game via WebSocket
+- Send and receive broadcast messages
+- Disconnect cleanly
+
+You can open the test page in multiple browser tabs to simulate multiple players.
+
 
 ### Environment Variables (Optional)
 
