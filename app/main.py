@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import string, random
 from typing import Dict, List
 
+from app.player import Player
 from app.ws_test import ws_test_html
 
 fastapi_app = FastAPI()
@@ -26,32 +27,51 @@ def generate_code(length=4):
 class PokerTable:
     def __init__(self, stack_size: int):
         self.stack_size = stack_size
-        self.clients: dict[str, WebSocket] = {}  # Now mapping player_id -> websocket
+        self.clients: Dict[str, WebSocket] = {}
+        self.players: Dict[str, Player] = {}
         self.game_state = {
-            "players": {},
+            "stack_size": stack_size,
+            "players": {},  # Will be populated from Player instances
             "actions": [],
-            # other game state data here
         }
 
-    async def connect(self, websocket: WebSocket, player_id: str):
+    async def connect(self, websocket: WebSocket, player_id: str) -> bool:
         await websocket.accept()
+
+        # Reject if already connected
+        if player_id in self.clients:
+            await websocket.close(code=1008)
+            return False
+
+        if player_id in self.players:
+            self.players[player_id].reconnect()
+        else:
+            self.players[player_id] = Player(player_id, self.stack_size)
+
         self.clients[player_id] = websocket
-        self.game_state["players"][player_id] = {
-            "stack": self.stack_size,
-            "status": "connected"
-        }
+        self.update_game_state_players()
+        return True
 
     def disconnect(self, websocket: WebSocket):
-        # Remove by matching the WebSocket object
-        player_id = next((pid for pid, ws in self.clients.items() if ws == websocket), None)
-        if player_id:
-            self.clients.pop(player_id, None)
-            if player_id in self.game_state["players"]:
-                self.game_state["players"][player_id]["status"] = "disconnected"
+        for pid, sock in list(self.clients.items()):
+            if sock == websocket:
+                self.players[pid].disconnect()
+                del self.clients[pid]
+                break
+        self.update_game_state_players()
+
+    def update_game_state_players(self):
+        self.game_state["players"] = {
+            pid: {
+                "stack": p.stack,
+                "status": p.status,
+            }
+            for pid, p in self.players.items()
+        }
 
     async def broadcast(self, message: dict):
-        for client in self.clients.values():
-            await client.send_json(message)
+        for ws in self.clients.values():
+            await ws.send_json(message)
 
 
 @fastapi_app.post("/create-game/")
@@ -69,7 +89,9 @@ async def websocket_endpoint(websocket: WebSocket, code: str, player_id: str):
         await websocket.close(code=1008)  # Policy violation
         return
 
-    await table.connect(websocket, player_id)
+    success = await table.connect(websocket, player_id)
+    if not success:
+        return
     try:
         await table.broadcast({"event": "player_joined", "player_id": player_id})
         while True:
