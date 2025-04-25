@@ -1,0 +1,16 @@
+[tool.black]
+line-length = 88
+target-version = ['py38']
+
+[tool.isort]
+profile = "black"
+
+[tool.mypy]
+python_version = 3.8
+check_untyped_defs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.pylint]
+max-line-length = 88
+disable = ["missing-docstring", "invalid-name"]
