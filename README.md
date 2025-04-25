@@ -25,7 +25,7 @@ A lightweight backend server for running browser-based multiplayer poker games w
 
 ### Requirements
 
-- Python 3.10+
+- Python 3.8+
 - Node.js (optional, if building a frontend)
 - `uvicorn` and `fastapi` Python packages
 
@@ -44,6 +44,10 @@ cd roomcode-poker
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+
+# for developers:
+pip install -r requirements-dev.txt
+pre-commit install
 ```
 
 3. **Run the development server**
