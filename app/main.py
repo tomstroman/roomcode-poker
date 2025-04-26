@@ -20,8 +20,8 @@ fastapi_app.add_middleware(
     allow_headers=["*"],
 )
 
-# Store all active tables in memory
-tables: Dict[str, "PokerTable"] = {}
+# Store all active games in memory
+active_games: Dict[str, "PokerTable"] = {}
 
 
 def generate_code(length: int = 4) -> str:
@@ -87,31 +87,31 @@ class PokerTable:
 @fastapi_app.post("/create-game/")
 async def create_game(stack_size: int = 5000) -> dict:
     code = generate_code()
-    while code in tables:
+    while code in active_games:
         code = generate_code()
-    tables[code] = PokerTable(stack_size)
+    active_games[code] = PokerTable(stack_size)
     return {"code": code}
 
 
 @fastapi_app.websocket("/ws/{code}/{player_id}/")
 async def websocket_endpoint(websocket: WebSocket, code: str, player_id: str) -> None:
-    table = tables.get(code)
-    if not table:
+    game = active_games.get(code)
+    if not game:
         await websocket.close(code=1008)  # Policy violation
         return
 
-    success = await table.connect(websocket, player_id)
+    success = await game.connect(websocket, player_id)
     if not success:
         return
     try:
-        await table.broadcast({"event": "player_joined", "player_id": player_id})
+        await game.broadcast({"event": "player_joined", "player_id": player_id})
         while True:
             data = await websocket.receive_json()
-            table.game_state["actions"].append(data)
-            await table.broadcast(data)
+            game.game_state["actions"].append(data)
+            await game.broadcast(data)
     except WebSocketDisconnect:
-        table.disconnect(websocket)
-        await table.broadcast({"event": "player_left", "player_id": player_id})
+        game.disconnect(websocket)
+        await game.broadcast({"event": "player_left", "player_id": player_id})
 
 
 @fastapi_app.get("/ws-test/", response_class=HTMLResponse)
