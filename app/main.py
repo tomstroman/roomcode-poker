@@ -1,12 +1,12 @@
 import random
 import string
-from typing import Any, Dict, List, TypedDict
+from typing import Dict
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
-from app.player import Player
+from app.game.base import PokerTable
 from app.ws_test import ws_test_html
 
 fastapi_app = FastAPI()
@@ -26,62 +26,6 @@ active_games: Dict[str, "PokerTable"] = {}
 
 def generate_code(length: int = 4) -> str:
     return "".join(random.choices(string.ascii_uppercase + string.digits, k=length))
-
-
-class GameState(TypedDict):
-    stack_size: int
-    players: Dict[str, Any]
-    actions: List[Dict[str, Any]]
-
-
-class PokerTable:
-    def __init__(self, stack_size: int):
-        self.stack_size = stack_size
-        self.clients: Dict[str, WebSocket] = {}
-        self.players: Dict[str, Player] = {}
-        self.game_state: GameState = {
-            "stack_size": stack_size,
-            "players": {},  # Will be populated from Player instances
-            "actions": [],
-        }
-
-    async def connect(self, websocket: WebSocket, player_id: str) -> bool:
-        await websocket.accept()
-
-        # Reject if already connected
-        if player_id in self.clients:
-            await websocket.close(code=1008)
-            return False
-
-        if player_id in self.players:
-            self.players[player_id].reconnect()
-        else:
-            self.players[player_id] = Player(player_id, self.stack_size)
-
-        self.clients[player_id] = websocket
-        self.update_game_state_players()
-        return True
-
-    def disconnect(self, websocket: WebSocket) -> None:
-        for pid, sock in list(self.clients.items()):
-            if sock == websocket:
-                self.players[pid].disconnect()
-                del self.clients[pid]
-                break
-        self.update_game_state_players()
-
-    def update_game_state_players(self) -> None:
-        self.game_state["players"] = {
-            pid: {
-                "stack": p.stack,
-                "status": p.status,
-            }
-            for pid, p in self.players.items()
-        }
-
-    async def broadcast(self, message: dict) -> None:
-        for ws in self.clients.values():
-            await ws.send_json(message)
 
 
 @fastapi_app.post("/create-game/")
