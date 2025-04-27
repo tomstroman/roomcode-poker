@@ -2,11 +2,11 @@ import random
 import string
 from typing import Dict
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
-from app.game.base import PokerTable
+from app.game.base import CreateGameRequest, Game, PokerTable
 from app.ws_test import ws_test_html
 
 fastapi_app = FastAPI()
@@ -21,7 +21,11 @@ fastapi_app.add_middleware(
 )
 
 # Store all active games in memory
-active_games: Dict[str, "PokerTable"] = {}
+active_games: Dict[str, Game] = {}
+
+game_types = {
+    "poker": PokerTable,
+}
 
 
 def generate_code(length: int = 4) -> str:
@@ -29,11 +33,19 @@ def generate_code(length: int = 4) -> str:
 
 
 @fastapi_app.post("/create-game/")
-async def create_game(stack_size: int = 5000) -> dict:
+async def create_game(request: CreateGameRequest) -> dict:
+    if game_class := game_types.get(request.game_type):
+        try:
+            game = game_class(request)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid parameters for game")
+    else:
+        raise HTTPException(status_code=404, detail="Game type not recognized")
+
     code = generate_code()
     while code in active_games:
         code = generate_code()
-    active_games[code] = PokerTable(stack_size)
+    active_games[code] = game
     return {"code": code}
 
 

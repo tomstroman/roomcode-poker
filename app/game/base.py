@@ -1,8 +1,21 @@
-from typing import Any, Dict, List, TypedDict
+from typing import Any, Dict, List, Optional, TypedDict
 
 from fastapi import WebSocket
+from pydantic import BaseModel
 
 from app.player import Player
+
+
+class CreateGameRequest(BaseModel):
+    game_type: str
+    # poker
+    stack_size: Optional[int] = None
+
+
+class GameState(TypedDict):
+    stack_size: int
+    players: Dict[str, Any]
+    actions: List[Dict[str, Any]]
 
 
 class Game:
@@ -16,6 +29,7 @@ class Game:
         self.clients: Dict[str, WebSocket] = {}
         self.players: Dict[str, Player] = {}
         self.stack_size = None
+        self.game_state: GameState
 
     async def connect(self, websocket: WebSocket, player_id: str) -> bool:
         await websocket.accept()
@@ -50,15 +64,12 @@ class Game:
             await ws.send_json(message)
 
 
-class GameState(TypedDict):
-    stack_size: int
-    players: Dict[str, Any]
-    actions: List[Dict[str, Any]]
-
-
 class PokerTable(Game):
-    def __init__(self, stack_size: int):
+    def __init__(self, request: CreateGameRequest):
         super(PokerTable, self).__init__()
+        if (stack_size := getattr(request, "stack_size", None)) is None:
+            raise ValueError("stack_size undefined")
+
         self.stack_size = stack_size
         self.game_state: GameState = {
             "stack_size": stack_size,
