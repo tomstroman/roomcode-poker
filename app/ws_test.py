@@ -44,7 +44,7 @@ ws_test_html = (
           const res = await fetch("http://localhost:8193/create-game/", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ stack_size: Number(stackSize) })
+            body: JSON.stringify({ game_type: "poker", stack_size: Number(stackSize) })
           });
 
           const data = await res.json();
