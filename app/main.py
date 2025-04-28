@@ -1,16 +1,13 @@
 from fastapi import FastAPI
 
-from app.api import router
-
 # from fastapi.staticfiles import StaticFiles
-# from fastapi.templating import Jinja2Templates
-
+from app.api import router
 
 fastapi_app = FastAPI()
 fastapi_app.include_router(router)
 
 # fastapi_app.mount("/static", StaticFiles(directory="app/static"), name="static")
-# templates = Jinja2Templates(directory="app/templates")
+
 
 ########
 # Everything below this line is hopefully on the chopping block

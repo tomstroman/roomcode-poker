@@ -1,14 +1,13 @@
+import os
 import random
 import string
 from typing import List
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import FileResponse, HTMLResponse
 
 from app.game.pass_pebble import PassThePebbleGame
 
-templates = Jinja2Templates(directory="app/templates")
 router = APIRouter()
 
 # Global in-memory game storage
@@ -67,4 +66,5 @@ async def game_state(code: str):
 # Basic UI page
 @router.get("/play/pass-the-pebble/", response_class=HTMLResponse)
 async def play_pass_the_pebble(request: Request):
-    return templates.TemplateResponse("pass_the_pebble.html", {"request": request})
+    file_path = os.path.join("app", "static", "pass_the_pebble.html")
+    return FileResponse(file_path)
