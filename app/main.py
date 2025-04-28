@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
-from app.game.base import CreateGameRequest, Game, PokerTable
+from app.game.base import CreateGameRequest, LegacyGame, PokerTable
 from app.ws_test import ws_test_html
 
 fastapi_app = FastAPI()
@@ -21,7 +21,7 @@ fastapi_app.add_middleware(
 )
 
 # Store all active games in memory
-active_games: Dict[str, Game] = {}
+active_games: Dict[str, LegacyGame] = {}
 
 game_types = {
     "poker": PokerTable,

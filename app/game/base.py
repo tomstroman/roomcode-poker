@@ -1,9 +1,36 @@
+from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, TypedDict
 
 from fastapi import WebSocket
 from pydantic import BaseModel
 
 from app.player import Player
+
+
+class Game(ABC):
+    @abstractmethod
+    def get_public_state(self) -> dict:
+        pass
+
+    @abstractmethod
+    def get_private_state(self, player_id: str) -> dict:
+        pass
+
+    @abstractmethod
+    def submit_action(self, player_id: str, action: dict) -> None:
+        pass
+
+    @abstractmethod
+    def get_current_player(self) -> str:
+        pass
+
+    @abstractmethod
+    def is_game_over(self) -> bool:
+        pass
+
+    @abstractmethod
+    def get_final_result(self) -> dict:
+        pass
 
 
 class CreateGameRequest(BaseModel):
@@ -18,7 +45,7 @@ class GameState(TypedDict):
     actions: List[Dict[str, Any]]
 
 
-class Game:
+class LegacyGame:
     """
     During transition, this class still has some poker-specific
     aspects but after abstraction work is finished, that won't
@@ -64,7 +91,7 @@ class Game:
             await ws.send_json(message)
 
 
-class PokerTable(Game):
+class PokerTable(LegacyGame):
     def __init__(self, request: CreateGameRequest):
         super(PokerTable, self).__init__()
         if (stack_size := getattr(request, "stack_size", None)) is None:
