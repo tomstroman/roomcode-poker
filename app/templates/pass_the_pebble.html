@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Pass the Pebble</title>
+</head>
+<body>
+    <h1>Pass the Pebble</h1>
+
+    <div>
+        <button onclick="createGame()">Create Game</button><br><br>
+        <input id="player" placeholder="Your player id (e.g. A or B)">
+        <input id="code" placeholder="Room code">
+        <button onclick="submitPass()">Pass!</button>
+    </div>
+
+    <div id="output"></div>
+
+    <script>
+        async function createGame() {
+            const players = ["A", "B"];
+            const res = await fetch("/create-game/?game_type=pass_the_pebble&players=" + JSON.stringify(players), { method: "POST" });
+            const data = await res.json();
+            document.getElementById("code").value = data.code;
+            alert("Game created! Code: " + data.code);
+        }
+
+        async function submitPass() {
+            const player = document.getElementById("player").value;
+            const code = document.getElementById("code").value;
+            const res = await fetch(`/submit-action/${code}/${player}/`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ action: "pass" })
+            });
+            const data = await res.json();
+            updateState(code);
+        }
+
+        async function updateState(code) {
+            const res = await fetch(`/game-state/${code}/`);
+            const data = await res.json();
+            document.getElementById("output").innerText = JSON.stringify(data, null, 2);
+        }
+    </script>
+</body>
+</html>
+

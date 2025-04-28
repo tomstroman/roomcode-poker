@@ -1,16 +1,22 @@
+import random
+import string
 from typing import List
 
-from fastapi import APIRouter, HTTPException  # , Request
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 
 from app.game.pass_pebble import PassThePebbleGame
 
-# from fastapi.responses import HTMLResponse
-
-
+templates = Jinja2Templates(directory="app/templates")
 router = APIRouter()
 
 # Global in-memory game storage
 games = {}
+
+
+def generate_code(length: int = 4) -> str:
+    return "".join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
 
 @router.post("/create-game/")
@@ -20,7 +26,9 @@ async def create_game(game_type: str, players: List[str]) -> dict:
     else:
         raise HTTPException(status_code=400, detail="Unknown game type")
 
-    code = "abcd"  # TODO: generate random roomcodes
+    code = generate_code()
+    while code in games:
+        code = generate_code()
     games[code] = game
     return {"code": code}
 
@@ -57,6 +65,6 @@ async def game_state(code: str):
 
 
 # Basic UI page
-# @router.get("/play/pass-the-pebble/", response_class=HTMLResponse)
-# async def play_pass_the_pebble(request: Request):
-#     return templates.TemplateResponse("pass_the_pebble.html", {"request": request})
+@router.get("/play/pass-the-pebble/", response_class=HTMLResponse)
+async def play_pass_the_pebble(request: Request):
+    return templates.TemplateResponse("pass_the_pebble.html", {"request": request})
