@@ -5,6 +5,7 @@ from typing import List
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
+from pydantic import BaseModel
 
 from app.game.pass_pebble import PassThePebbleGame
 
@@ -18,10 +19,15 @@ def generate_code(length: int = 4) -> str:
     return "".join(random.choices(string.ascii_uppercase + string.digits, k=length))
 
 
+class CreateGameRequest(BaseModel):
+    game_type: str
+    players: List[str]
+
+
 @router.post("/create-game/")
-async def create_game(game_type: str, players: List[str]) -> dict:
-    if game_type == "pass_the_pebble":
-        game = PassThePebbleGame(players)
+async def create_game(request: CreateGameRequest) -> dict:
+    if request.game_type == "pass_the_pebble":
+        game = PassThePebbleGame(request.players)
     else:
         raise HTTPException(status_code=400, detail="Unknown game type")
 

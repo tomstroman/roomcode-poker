@@ -19,7 +19,11 @@
     <script>
         async function createGame() {
             const players = ["A", "B"];
-            const res = await fetch("/create-game/?game_type=pass_the_pebble&players=" + JSON.stringify(players), { method: "POST" });
+            const res = await fetch("/create-game/", {
+                method: "POST",
+              headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ game_type: "pass_the_pebble", players})
+            });
             const data = await res.json();
             document.getElementById("code").value = data.code;
             alert("Game created! Code: " + data.code);
