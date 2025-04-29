@@ -1,50 +1,122 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8">
-    <title>Pass the Pebble</title>
+    <title>Game Management Panel</title>
 </head>
 <body>
-    <h1>Pass the Pebble</h1>
+    <h1>Multiplayer Game Panel</h1>
 
-    <div>
-        <button onclick="createGame()">Create Game</button><br><br>
-        <input id="player" placeholder="Your player id (e.g. A or B)">
-        <input id="code" placeholder="Room code">
-        <button onclick="submitPass()">Pass!</button>
+    <!-- Game Creation -->
+    <h2>Create Game</h2>
+    <label>Game Type:</label><br>
+    <label><input type="radio" name="gameType" value="pass_the_pebble" checked> Pass the Pebble</label><br>
+    <label>Number of Players: <input type="number" id="numPlayers" value="2" min="2" max="6"></label>
+    <button onclick="createGame()">Create Game</button>
+    <div id="gameCodeDisplay"></div>
+
+    <!-- Join Game -->
+    <h2>Join Game</h2>
+    <label>Game Code: <input id="code"></label>
+    <button onclick="connect()">Join via WebSocket</button>
+
+    <!-- Slot Claiming -->
+    <div id="slotClaimSection" style="display:none;">
+        <h3>Available Slots</h3>
+        <div id="slotButtons"></div>
     </div>
 
-    <div id="output"></div>
+    <!-- Game Control -->
+    <div id="creatorControls" style="display:none;">
+        <h3>Game Controls</h3>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+
+    <pre id="output"></pre>
 
     <script>
-        async function createGame() {
-            const players = ["A", "B"];
-            const res = await fetch("/create-game/", {
-                method: "POST",
-              headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ game_type: "pass_the_pebble", players})
-            });
-            const data = await res.json();
-            document.getElementById("code").value = data.code;
-            alert("Game created! Code: " + data.code);
-        }
+        let socket;
+        let currentCode = "";
+        let playerId = ""; // Assigned upon WebSocket connect
 
-        async function submitPass() {
-            const player = document.getElementById("player").value;
-            const code = document.getElementById("code").value;
-            const res = await fetch(`/submit-action/${code}/${player}/`, {
+        async function createGame() {
+            const players = parseInt(document.getElementById("numPlayers").value);
+            const gameType = document.querySelector('input[name="gameType"]:checked').value;
+
+            const response = await fetch("/create-game/", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "pass" })
+                body: JSON.stringify({ players, game_type: gameType })
             });
-            const data = await res.json();
-            updateState(code);
+
+            const data = await response.json();
+            currentCode = data.code;
+            document.getElementById("code").value = currentCode;
+            document.getElementById("gameCodeDisplay").innerText = "Game Code: " + currentCode;
         }
 
-        async function updateState(code) {
-            const res = await fetch(`/game-state/${code}/`);
-            const data = await res.json();
-            document.getElementById("output").innerText = JSON.stringify(data, null, 2);
+        function connect() {
+            const code = document.getElementById("code").value.trim();
+            if (!code) {
+                alert("Enter a game code");
+                return;
+            }
+
+            socket = new WebSocket(`ws://${location.host}/ws/${code}/`);
+
+            socket.onopen = () => {
+                log("WebSocket connected.");
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                log(data);
+
+                if (data.player_id) {
+                    playerId = data.player_id;
+                }
+
+                if (data.available_slots) {
+                    renderSlotButtons(data.available_slots);
+                }
+
+                if (data.info && data.info.includes("You are the creator")) {
+                    document.getElementById("creatorControls").style.display = "block";
+                }
+            };
+
+            socket.onerror = (e) => {
+                alert("WebSocket error");
+                console.error(e);
+            };
+        }
+
+        function renderSlotButtons(slots) {
+            const container = document.getElementById("slotButtons");
+            container.innerHTML = "";
+            slots.forEach(slot => {
+                const btn = document.createElement("button");
+                btn.textContent = "Claim Slot " + slot;
+                btn.onclick = () => claimSlot(slot);
+                container.appendChild(btn);
+            });
+            document.getElementById("slotClaimSection").style.display = "block";
+        }
+
+        function claimSlot(slot) {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ action: "claim_slot", slot: slot }));
+            }
+        }
+
+        function startGame() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ action: "start_game" }));
+            }
+        }
+
+        function log(msg) {
+            document.getElementById("output").textContent += JSON.stringify(msg, null, 2);
         }
     </script>
 </body>

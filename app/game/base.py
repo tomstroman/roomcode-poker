@@ -21,7 +21,7 @@ class Game(ABC):
         pass
 
     @abstractmethod
-    def get_current_player(self) -> str:
+    def get_current_player(self) -> Optional[str]:
         pass
 
     @abstractmethod
