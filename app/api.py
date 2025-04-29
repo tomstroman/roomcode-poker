@@ -1,8 +1,8 @@
 import os
 import random
 import string
+import uuid
 from collections import defaultdict
-from typing import List
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
@@ -25,7 +25,7 @@ def generate_code(length: int = 4) -> str:
 
 class CreateGameRequest(BaseModel):
     game_type: str
-    players: List[str]
+    players: int
 
 
 @router.post("/create-game/")
@@ -80,32 +80,57 @@ async def play_pass_the_pebble(request: Request):
     return FileResponse(file_path)
 
 
-@router.websocket("/ws/{code}/{player_id}/")
-async def game_ws(websocket: WebSocket, code: str, player_id: str):
+@router.websocket("/ws/{code}/")
+async def game_ws(websocket: WebSocket, code: str):
     await websocket.accept()
+    player_id = str(uuid.uuid4())[:8]
 
-    if code not in games:
+    if (game := games.get(code)) is None:
         await websocket.send_json({"error": "Game not found"})
         await websocket.close()
         return
 
-    game = games[code]
+    if not game.creator:
+        game.creator = player_id
+        await websocket.send_json({"info": "You are the creator"})
+
+    await websocket.send_json(
+        {
+            "player_id": player_id,
+            "available_slots": [k for k, v in game.players.items() if v is None],
+        }
+    )
     connections[code][player_id] = websocket
 
     try:
-        # Send initial state
-        await send_game_state(game, code)
-
         while True:
-            message = await websocket.receive_json()
-            try:
-                game.submit_action(player_id, message)
-            except ValueError as e:
-                await websocket.send_json({"error": str(e)})
-                continue
+            data = await websocket.receive_json()
+            action = data.get("action")
 
-            # Notify all connected players of the new state
-            await send_game_state(game, code)
+            if action == "claim_slot":
+                slot = data["slot"]
+                if game.players.get(slot) is None:
+                    game.players[slot] = player_id
+                    for conn in connections[code].values():
+                        await conn.send_json(
+                            {
+                                "available_slots": [
+                                    k for k, v in game.players.items() if v is None
+                                ]
+                            }
+                        )
+                else:
+                    await websocket.send_json({"error": f"Slot {slot} already claimed"})
+            elif action == "start_game":
+                if player_id == game.creator:
+                    # game.start_game()
+                    for conn in connections[code].values():
+                        await conn.send_json({"info": "Game started"})
+            elif action == "take_turn":
+                game.submit_action(player_id, data["turn"])
+
+                # Notify all connected players of the new state
+                await send_game_state(game, code)
 
     except WebSocketDisconnect:
         del connections[code][player_id]

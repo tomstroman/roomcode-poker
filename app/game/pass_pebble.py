@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, Optional
 
 from .base import Game
 
@@ -14,8 +14,9 @@ class PassThePebbleGame(Game):
     - First player to reach 5 passes wins.
     """
 
-    def __init__(self, players: List[str]):
-        self.players = players  # ['A', 'B']
+    def __init__(self, players: int):
+        self.players: Dict[int, Optional[str]] = {i: None for i in range(players)}
+        self.creator: Optional[str] = None
         self.current_index = 0
         self.pass_count = 0
         self.max_passes = 5
@@ -43,7 +44,7 @@ class PassThePebbleGame(Game):
         else:
             self.current_index = (self.current_index + 1) % len(self.players)
 
-    def get_current_player(self) -> str:
+    def get_current_player(self) -> Optional[str]:
         return self.players[self.current_index]
 
     def is_game_over(self) -> bool:
