@@ -63,6 +63,8 @@ By default, this will serve:
 - WebSocket connections at `/ws/{room_code}/{player_id}/`
 - A minimal browser-based test interface at `/ws-test/` for connecting to a room and sending messages
 
+(NOTE: poker test page currently broken)
+
 To try the test interface, start the server, open your browser, and visit:
 
 ```
