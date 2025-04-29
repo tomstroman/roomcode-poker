@@ -1,50 +1,43 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8">
-    <title>Pass the Pebble</title>
+    <title>Pass the Pebble (WebSocket)</title>
 </head>
 <body>
     <h1>Pass the Pebble</h1>
 
-    <div>
-        <button onclick="createGame()">Create Game</button><br><br>
-        <input id="player" placeholder="Your player id (e.g. A or B)">
-        <input id="code" placeholder="Room code">
-        <button onclick="submitPass()">Pass!</button>
-    </div>
+    <input id="player" placeholder="Your ID (A or B)">
+    <input id="code" placeholder="Room Code">
+    <button onclick="connect()">Join Game</button>
+    <button onclick="sendPass()">Pass</button>
 
-    <div id="output"></div>
+    <pre id="output"></pre>
 
     <script>
-        async function createGame() {
-            const players = ["A", "B"];
-            const res = await fetch("/create-game/", {
-                method: "POST",
-              headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ game_type: "pass_the_pebble", players})
-            });
-            const data = await res.json();
-            document.getElementById("code").value = data.code;
-            alert("Game created! Code: " + data.code);
-        }
+        let socket;
 
-        async function submitPass() {
+        async function connect() {
             const player = document.getElementById("player").value;
             const code = document.getElementById("code").value;
-            const res = await fetch(`/submit-action/${code}/${player}/`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ action: "pass" })
-            });
-            const data = await res.json();
-            updateState(code);
+
+            socket = new WebSocket(`ws://${location.host}/ws/${code}/${player}/`);
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                document.getElementById("output").innerText = JSON.stringify(data, null, 2);
+            };
+
+            socket.onerror = (e) => {
+                alert("WebSocket error");
+                console.error(e);
+            };
         }
 
-        async function updateState(code) {
-            const res = await fetch(`/game-state/${code}/`);
-            const data = await res.json();
-            document.getElementById("output").innerText = JSON.stringify(data, null, 2);
+        function sendPass() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ action: "pass" }));
+            }
         }
     </script>
 </body>
