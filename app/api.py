@@ -2,7 +2,8 @@ import os
 import random
 import string
 import uuid
-from collections import defaultdict
+from copy import deepcopy
+from typing import Any, Callable, Dict, Optional
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
@@ -15,8 +16,84 @@ from app.game.pass_pebble import PassThePebbleGame
 router = APIRouter()
 
 # Global in-memory game storage
-games = {}
-connections: defaultdict = defaultdict(dict)  # { code: {player_id: websocket} }
+
+
+class Room(dict):
+    def __init__(self, code: str, game: Game, *args, **kwargs):
+        super(Room, self).__init__(*args, **kwargs)
+        self.code: str = code
+        self.game: Game = game
+
+    async def broadcast(self, message: Dict[str, Any]):
+        for conn in self.values():
+            await conn.send_json(message)
+
+    async def broadcast_connections(self):
+        num_conn = len(self)
+        await self.broadcast(
+            {
+                "num_connections": num_conn,
+                "available_slots": self.slot_availability(),
+            }
+        )
+
+    def slot_availability(self) -> Dict[int, bool]:
+        return {
+            slot_id: client_id is None
+            for slot_id, client_id in self.game.players.items()
+        }
+
+    def slots_by_client(self) -> Dict[str, int]:
+        return {
+            client_id: slot_id
+            for slot_id, client_id in self.game.players.items()
+            if client_id is not None
+        }
+
+    def player_names(self) -> Dict[int, Optional[str]]:
+        return {
+            slot_id: (f"Player {slot_id}" if client_id is not None else None)
+            for slot_id, client_id in self.game.players.items()
+        }
+
+    def common_payload(self):
+        return {
+            "num_connections": len(self),
+            "available_slots": self.slot_availability(),
+            "names": self.player_names(),
+        }
+
+    async def broadcast_personalized(
+        self, common: Dict[str, Any], personal: Dict[str, Callable]
+    ):
+        for client_id, conn in self.items():
+            message = deepcopy(common)
+            for key, lookup in personal.items():
+                message[key] = lookup(client_id)
+            await conn.send_json(message)
+
+    async def broadcast_slots(self):
+        personal = {
+            "my_slot": lambda x: self.slots_by_client().get(x),
+        }
+        await self.broadcast_personalized(self.common_payload(), personal)
+
+    async def claim_slot(self, slot_id: int, client_id: str) -> None:
+        self.game.players[slot_id] = client_id
+        await self.broadcast_slots()
+
+    async def release_slot(self, client_id: str) -> bool:
+        slots_by_client = self.slots_by_client()
+        if (client_slot := slots_by_client.get(client_id)) is None:
+            return False
+
+        self.game.players[client_slot] = None
+
+        await self.broadcast_slots()
+        return True
+
+
+rooms: Dict[str, Room] = dict()  # { code: {player_id: websocket} }
 
 
 def generate_code(length: int = 4) -> str:
@@ -36,36 +113,18 @@ async def create_game(request: CreateGameRequest) -> dict:
         raise HTTPException(status_code=400, detail="Unknown game type")
 
     code = generate_code()
-    while code in games:
+    while code in rooms:
         code = generate_code()
-    games[code] = game
+    rooms[code] = Room(code, game)
     return {"code": code}
-
-
-@router.post("/submit-action/{code}/{player_id}/")
-async def submit_action(code: str, player_id: str, action: dict):
-    if code not in games:
-        raise HTTPException(status_code=404, detail="Game not found")
-
-    game = games[code]
-
-    if game.is_game_over():
-        return {"status": "Game already over", "final_result": game.get_final_result()}
-
-    try:
-        game.submit_action(player_id, action)
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    return {"status": "Action accepted"}
 
 
 @router.get("/game-state/{code}/")
 async def game_state(code: str):
-    if code not in games:
+    if code not in rooms:
         raise HTTPException(status_code=404, detail="Game not found")
 
-    game = games[code]
+    game = rooms[code].game
     return {
         "public_state": game.get_public_state(),
         "is_over": game.is_game_over(),
@@ -83,24 +142,31 @@ async def play_pass_the_pebble(request: Request):
 @router.websocket("/ws/{code}/")
 async def game_ws(websocket: WebSocket, code: str):
     await websocket.accept()
-    player_id = str(uuid.uuid4())[:8]
-
-    if (game := games.get(code)) is None:
-        await websocket.send_json({"error": "Game not found"})
+    if (room := rooms.get(code)) is None:
+        await websocket.send_json({"error": "Game room not found"})
         await websocket.close()
         return
 
-    if not game.creator:
-        game.creator = player_id
-        await websocket.send_json({"info": "You are the creator"})
+    client_id = str(uuid.uuid4())[:8]
+    room[client_id] = websocket
+
+    game = room.game
+
+    if not game.manager:
+        game.manager = client_id
+        await websocket.send_json({"info": "You are the manager"})
+
+    await room.broadcast_slots()
+    #    for conn in room.values():
+    #        await conn.send_json({"num_connections": len(connections[code])})
 
     await websocket.send_json(
         {
-            "player_id": player_id,
-            "available_slots": [k for k, v in game.players.items() if v is None],
+            "client_id": client_id,
+            **room.common_payload(),
+            "my_slot": None,
         }
     )
-    connections[code][player_id] = websocket
 
     try:
         while True:
@@ -110,36 +176,38 @@ async def game_ws(websocket: WebSocket, code: str):
             if action == "claim_slot":
                 slot = data["slot"]
                 if game.players.get(slot) is None:
-                    game.players[slot] = player_id
-                    for conn in connections[code].values():
-                        await conn.send_json(
-                            {
-                                "available_slots": [
-                                    k for k, v in game.players.items() if v is None
-                                ]
-                            }
-                        )
+                    await room.claim_slot(slot, client_id)
                 else:
                     await websocket.send_json({"error": f"Slot {slot} already claimed"})
+
+            elif action == "release_slot":
+                if not await room.release_slot(client_id):
+                    await websocket.send_json(
+                        {"error": "No slot associated with client"}
+                    )
+
             elif action == "start_game":
-                if player_id == game.creator:
+                if client_id == game.manager:
                     # game.start_game()
-                    for conn in connections[code].values():
+                    for conn in room.values():
                         await conn.send_json({"info": "Game started"})
             elif action == "take_turn":
-                game.submit_action(player_id, data["turn"])
+                game.submit_action(client_id, data["turn"])
 
                 # Notify all connected players of the new state
                 await send_game_state(game, code)
 
     except WebSocketDisconnect:
-        del connections[code][player_id]
-        if not connections[code]:  # Cleanup if empty
-            del connections[code]
+        del room[client_id]
+        await room.release_slot(client_id)
+        if room:
+            await room.broadcast_slots()
+        else:
+            del room
 
 
 async def send_game_state(game: Game, code: str):
-    for pid, ws in connections[code].items():
+    for pid, ws in rooms[code].items():
         if ws.application_state != WebSocketState.CONNECTED:
             continue
         await ws.send_json(

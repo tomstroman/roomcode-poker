@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, TypedDict
 
 from fastapi import WebSocket
@@ -7,7 +8,11 @@ from pydantic import BaseModel
 from app.player import Player
 
 
+@dataclass
 class Game(ABC):
+    players: Dict[int, Optional[str]] = field(default_factory=dict)
+    manager: Optional[str] = field(default_factory=str)
+
     @abstractmethod
     def get_public_state(self) -> dict:
         pass
