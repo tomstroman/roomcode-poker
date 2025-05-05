@@ -16,7 +16,7 @@ class PassThePebbleGame(Game):
 
     def __init__(self, players: int):
         self.players: Dict[int, Optional[str]] = {i: None for i in range(players)}
-        self.creator: Optional[str] = None
+        self.manager: Optional[str] = None
         self.current_index = 0
         self.pass_count = 0
         self.max_passes = 5

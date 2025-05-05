@@ -21,13 +21,14 @@
     <button onclick="connect()">Join via WebSocket</button>
 
     <!-- Slot Claiming -->
+    <div id="roomStats"></div>
     <div id="slotClaimSection" style="display:none;">
         <h3>Available Slots</h3>
         <div id="slotButtons"></div>
     </div>
 
     <!-- Game Control -->
-    <div id="creatorControls" style="display:none;">
+    <div id="managerControls" style="display:none;">
         <h3>Game Controls</h3>
         <button onclick="startGame()">Start Game</button>
     </div>
@@ -72,17 +73,19 @@
                 const data = JSON.parse(event.data);
                 log(data);
 
-                if (data.player_id) {
-                    playerId = data.player_id;
+                if (data.client_id) {
+                    playerId = data.client_id;
                 }
 
                 if (data.available_slots) {
-                    renderSlotButtons(data.available_slots);
+                    updateRoomStats(data);
+                    renderSlotButtons(data.available_slots, data.names, data.my_slot);
                 }
 
-                if (data.info && data.info.includes("You are the creator")) {
-                    document.getElementById("creatorControls").style.display = "block";
+                if (data.info && data.info.includes("You are the manager")) {
+                    document.getElementById("managerControls").style.display = "block";
                 }
+
             };
 
             socket.onerror = (e) => {
@@ -91,14 +94,35 @@
             };
         }
 
-        function renderSlotButtons(slots) {
+        function renderSlotButtons(slots, names, mySlot) {
             const container = document.getElementById("slotButtons");
             container.innerHTML = "";
-            slots.forEach(slot => {
+            Object.entries(slots).forEach(([slot, avail]) => {
+                const index = parseInt(slot);
+                const wrapper = document.createElement("div");
+                const name = names[index] || `Player ${index}`;
+
                 const btn = document.createElement("button");
-                btn.textContent = "Claim Slot " + slot;
-                btn.onclick = () => claimSlot(slot);
-                container.appendChild(btn);
+                btn.textContent = (mySlot === index ? "Your Slot (" : "Claim ") + name + ")";
+                if (mySlot !== index && (!avail || mySlot !== null)) {
+                    btn.disabled = true;
+                }
+                btn.onclick = () => {
+                    if (mySlot === index) {
+                        releaseSlot();
+                    } else {
+                        claimSlot(index);
+                    }
+                };
+                wrapper.appendChild(btn);
+
+                if (mySlot === index) {
+                    const nameInput = document.createElement("input");
+                    nameInput.type = "text";
+                    nameInput.onchange = () => updatePlayerName(nameInput.value);
+                    wrapper.appendChild(nameInput);
+                }
+                container.appendChild(wrapper);
             });
             document.getElementById("slotClaimSection").style.display = "block";
         }
@@ -106,6 +130,12 @@
         function claimSlot(slot) {
             if (socket && socket.readyState === WebSocket.OPEN) {
                 socket.send(JSON.stringify({ action: "claim_slot", slot: slot }));
+            }
+        }
+
+        function releaseSlot() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ action: "release_slot" }));
             }
         }
 
@@ -118,6 +148,16 @@
         function log(msg) {
             document.getElementById("output").textContent += JSON.stringify(msg, null, 2);
         }
+
+        function updateRoomStats(state) {
+            const info = document.getElementById("roomStats");
+            const total = state.num_connections;
+            const claimed = Object.values(state.available_slots).filter(v => v === false).length;
+            const players = claimed;
+            const spectators = total - claimed;
+            info.textContent = `Connections: ${total} | Players: ${players} | Spectators: ${spectators}`;
+        }
+
     </script>
 </body>
 </html>
