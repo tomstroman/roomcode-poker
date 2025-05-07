@@ -83,6 +83,9 @@ class Room(dict):
         await self.broadcast_slots()
 
     async def release_slot(self, client_id: str) -> bool:
+        if self.game.manager == client_id:
+            self.game.manager = None
+            await self.broadcast({"info": "There is no manager"})
         slots_by_client = self.slots_by_client()
         if (client_slot := slots_by_client.get(client_id)) is None:
             return False
@@ -91,6 +94,18 @@ class Room(dict):
 
         await self.broadcast_slots()
         return True
+
+    async def set_manager(self, client_id: str, conn: WebSocket) -> bool:
+        if self.game.manager is None:
+            self.game.manager = client_id
+            if (client_slot := self.slots_by_client().get(client_id)) is None:
+                manager = "A spectator"
+            else:
+                manager = f"Player {client_slot}"
+            await self.broadcast({"info": f"{manager} is the manager now"})
+            await conn.send_json({"info": "You are the manager"})
+            return True
+        return False
 
 
 rooms: Dict[str, Room] = dict()  # { code: {player_id: websocket} }
@@ -153,8 +168,7 @@ async def game_ws(websocket: WebSocket, code: str):
     game = room.game
 
     if not game.manager:
-        game.manager = client_id
-        await websocket.send_json({"info": "You are the manager"})
+        await room.set_manager(client_id, websocket)
 
     await room.broadcast_slots()
     #    for conn in room.values():
@@ -179,6 +193,10 @@ async def game_ws(websocket: WebSocket, code: str):
                     await room.claim_slot(slot, client_id)
                 else:
                     await websocket.send_json({"error": f"Slot {slot} already claimed"})
+
+            elif action == "claim_manager":
+                if not await room.set_manager(client_id, websocket):
+                    await websocket.send_json({"error": "Could not claim manager"})
 
             elif action == "release_slot":
                 if not await room.release_slot(client_id):

@@ -8,18 +8,27 @@
     <h1>Multiplayer Game Panel</h1>
 
     <!-- Game Creation -->
+    <div id="createGameSection">
     <h2>Create Game</h2>
     <label>Game Type:</label><br>
     <label><input type="radio" name="gameType" value="pass_the_pebble" checked> Pass the Pebble</label><br>
     <label>Number of Players: <input type="number" id="numPlayers" value="2" min="2" max="6"></label>
     <button onclick="createGame()">Create Game</button>
+    </div>
     <div id="gameCodeDisplay"></div>
 
     <!-- Join Game -->
+    <div id="joinGame">
     <h2>Join Game</h2>
     <label>Game Code: <input id="code"></label>
     <button onclick="connect()">Join via WebSocket</button>
+    </div>
 
+    <!-- Manager Claiming -->
+    <div id="managerClaimSection" style="display:none;">
+        <h3>Manager Needed</h3>
+        <button id="managerClaimButton" onclick="claimManager()">Claim Manager</button>
+    </div>
     <!-- Slot Claiming -->
     <div id="roomStats"></div>
     <div id="slotClaimSection" style="display:none;">
@@ -57,6 +66,8 @@
         }
 
         function connect() {
+            let isManager = false;
+            let mySlot = null;
             const code = document.getElementById("code").value.trim();
             if (!code) {
                 alert("Enter a game code");
@@ -68,6 +79,8 @@
             socket.onopen = () => {
                 log("WebSocket connected.");
             };
+            document.getElementById("createGameSection").style.display = "none";
+            document.getElementById("joinGame").style.display = "none";
 
             socket.onmessage = (event) => {
                 const data = JSON.parse(event.data);
@@ -79,12 +92,25 @@
 
                 if (data.available_slots) {
                     updateRoomStats(data);
-                    renderSlotButtons(data.available_slots, data.names, data.my_slot);
+                    mySlot = data.my_slot;
+                    renderSlotButtons(data.available_slots, data.names, mySlot);
                 }
 
                 if (data.info && data.info.includes("You are the manager")) {
+                    isManager = true;
                     document.getElementById("managerControls").style.display = "block";
                 }
+
+                if (data.info && data.info.includes("There is no manager")) {
+                    isManager = false;
+                    document.getElementById("managerClaimSection").style.display = "block";
+                }
+
+                if (data.info && data.info.includes("is the manager now")) {
+                    document.getElementById("managerClaimSection").style.display = "none";
+                }
+
+                updateTitle(code, isManager, mySlot);
 
             };
 
@@ -157,6 +183,27 @@
             const spectators = total - claimed;
             info.textContent = `Connections: ${total} | Players: ${players} | Spectators: ${spectators}`;
         }
+
+        function updateTitle(roomCode, manager, slot = null) {
+            let title = `Game ${roomCode} - `;
+            if (manager) {
+                title += "manager, ";
+            }
+            if (slot === null) {
+                title += "spectator";
+            } else {
+                title += `player ${slot}`;
+            }
+            document.title = title;
+        }
+
+        function claimManager() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ action: "claim_manager" }));
+            }
+        }
+                
+            
 
     </script>
 </body>
