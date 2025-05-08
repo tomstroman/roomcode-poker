@@ -159,7 +159,7 @@
                 if (mySlot === index) {
                     const nameInput = document.createElement("input");
                     nameInput.type = "text";
-                    nameInput.onchange = () => updatePlayerName(nameInput.value);
+                    nameInput.onchange = () => updatePlayerName(mySlot, nameInput.value);
                     wrapper.appendChild(nameInput);
                 }
                 container.appendChild(wrapper);
@@ -237,6 +237,11 @@
             gs.textContent = JSON.stringify(data.public_state);
         }
 
+        function updatePlayerName(slot, name) {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ action: "update_name", slot, name }));
+            }
+        }
                 
             
 

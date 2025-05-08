@@ -39,21 +39,21 @@ class Room(dict):
 
     def slot_availability(self) -> Dict[int, bool]:
         return {
-            slot_id: client_id is None
-            for slot_id, client_id in self.game.players.items()
+            slot_id: player.client_id is None
+            for slot_id, player in self.game.players.items()
         }
 
     def slots_by_client(self) -> Dict[str, int]:
         return {
-            client_id: slot_id
-            for slot_id, client_id in self.game.players.items()
-            if client_id is not None
+            player.client_id: slot_id
+            for slot_id, player in self.game.players.items()
+            if player.client_id is not None
         }
 
     def player_names(self) -> Dict[int, Optional[str]]:
         return {
-            slot_id: (f"Player {slot_id}" if client_id is not None else None)
-            for slot_id, client_id in self.game.players.items()
+            slot_id: (player.display_name if player.client_id is not None else None)
+            for slot_id, player in self.game.players.items()
         }
 
     def common_payload(self):
@@ -79,7 +79,7 @@ class Room(dict):
         await self.broadcast_personalized(self.common_payload(), personal)
 
     async def claim_slot(self, slot_id: int, client_id: str) -> None:
-        self.game.players[slot_id] = client_id
+        self.game.players[slot_id].set_client_id(client_id)
         await self.broadcast_slots()
 
     async def release_slot(self, client_id: str) -> bool:
@@ -90,7 +90,7 @@ class Room(dict):
         if (client_slot := slots_by_client.get(client_id)) is None:
             return False
 
-        self.game.players[client_slot] = None
+        self.game.players[client_slot].set_client_id(None)
 
         await self.broadcast_slots()
         return True
@@ -189,10 +189,20 @@ async def game_ws(websocket: WebSocket, code: str):
 
             if action == "claim_slot":
                 slot = data["slot"]
-                if game.players.get(slot) is None:
+                if game.players[slot].client_id is None:
                     await room.claim_slot(slot, client_id)
                 else:
                     await websocket.send_json({"error": f"Slot {slot} already claimed"})
+
+            elif action == "update_name":
+                player = game.players[(slot := data["slot"])]
+                if player.client_id == client_id:
+                    player.set_display_name(data["name"])
+                    await room.broadcast_slots()
+                else:
+                    await websocket.send_json(
+                        {"error": f"Cannot change name for {slot=}"}
+                    )
 
             elif action == "claim_manager":
                 if not await room.set_manager(client_id, websocket):
