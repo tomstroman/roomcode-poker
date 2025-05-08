@@ -16,6 +16,7 @@
     <button onclick="createGame()">Create Game</button>
     </div>
     <div id="gameCodeDisplay"></div>
+    <div id="gameState"></div>
 
     <!-- Join Game -->
     <div id="joinGame">
@@ -39,7 +40,10 @@
     <!-- Game Control -->
     <div id="managerControls" style="display:none;">
         <h3>Game Controls</h3>
-        <button onclick="startGame()">Start Game</button>
+        <button id="startGameButton" onclick="startGame()">Start Game</button>
+    </div>
+    <div id="playerControls" style="display:none;">
+        <button id="takeTurnButton" onclick="takeTurn()">Pass pebble</button>
     </div>
 
     <pre id="output"></pre>
@@ -110,6 +114,16 @@
                     document.getElementById("managerClaimSection").style.display = "none";
                 }
 
+                if (data.info && data.info.includes("Game started")) {
+                    document.getElementById("startGameButton").disabled = true;
+                    document.getElementById("playerControls").style.display = "block";
+                }
+
+                if (data.public_state) {
+                    updateGameState(data);
+                    renderPlayerButtons(data.public_state, mySlot);
+                }
+
                 updateTitle(code, isManager, mySlot);
 
             };
@@ -151,6 +165,15 @@
                 container.appendChild(wrapper);
             });
             document.getElementById("slotClaimSection").style.display = "block";
+        }
+
+        function renderPlayerButtons(gameState, mySlot) {
+            btn = document.getElementById("takeTurnButton");
+            if (mySlot == gameState.current_holder_index) {
+                btn.disabled = false;
+            } else {
+                btn.disabled = true;
+            }
         }
 
         function claimSlot(slot) {
@@ -202,6 +225,18 @@
                 socket.send(JSON.stringify({ action: "claim_manager" }));
             }
         }
+
+        function takeTurn() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ action: "take_turn", turn: {action: "pass"} }));
+            }
+        }
+
+        function updateGameState(data) {
+            gs = document.getElementById("gameState");
+            gs.textContent = JSON.stringify(data.public_state);
+        }
+
                 
             
 

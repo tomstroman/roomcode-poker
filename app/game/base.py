@@ -37,6 +37,10 @@ class Game(ABC):
     def get_final_result(self) -> dict:
         pass
 
+    @abstractmethod
+    def start_game(self) -> dict:
+        pass
+
 
 class CreateGameRequest(BaseModel):
     game_type: str

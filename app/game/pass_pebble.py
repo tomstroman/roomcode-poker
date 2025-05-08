@@ -24,8 +24,9 @@ class PassThePebbleGame(Game):
 
     def get_public_state(self) -> dict:
         return {
-            "current_holder": self.players[self.current_index],
+            "current_holder_index": self.current_index,
             "pass_count": self.pass_count,
+            "is_game_over": self.is_game_over(),
         }
 
     def get_private_state(self, player_id: str) -> dict:
@@ -42,7 +43,12 @@ class PassThePebbleGame(Game):
         if self.pass_count >= self.max_passes:
             self.winner = player_id
         else:
-            self.current_index = (self.current_index + 1) % len(self.players)
+            for _ in range(len(self.players)):
+                self.current_index = (self.current_index + 1) % len(self.players)
+                if self.players[self.current_index]:
+                    break
+            else:
+                raise ValueError("No players!")
 
     def get_current_player(self) -> Optional[str]:
         return self.players[self.current_index]
@@ -54,3 +60,6 @@ class PassThePebbleGame(Game):
         if self.winner:
             return {"winner": self.winner}
         return {}
+
+    def start_game(self) -> dict:
+        return self.get_public_state()

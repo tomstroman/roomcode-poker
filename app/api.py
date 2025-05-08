@@ -206,14 +206,15 @@ async def game_ws(websocket: WebSocket, code: str):
 
             elif action == "start_game":
                 if client_id == game.manager:
-                    # game.start_game()
-                    for conn in room.values():
-                        await conn.send_json({"info": "Game started"})
+                    game.start_game()
+                    await room.broadcast({"info": "Game started"})
+                    await send_game_state(room)
+
             elif action == "take_turn":
                 game.submit_action(client_id, data["turn"])
 
                 # Notify all connected players of the new state
-                await send_game_state(game, code)
+                await send_game_state(room)
 
     except WebSocketDisconnect:
         del room[client_id]
@@ -224,8 +225,9 @@ async def game_ws(websocket: WebSocket, code: str):
             del room
 
 
-async def send_game_state(game: Game, code: str):
-    for pid, ws in rooms[code].items():
+async def send_game_state(room: Room):
+    game = room.game
+    for pid, ws in room.items():
         if ws.application_state != WebSocketState.CONNECTED:
             continue
         await ws.send_json(
