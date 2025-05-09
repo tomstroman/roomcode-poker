@@ -41,10 +41,11 @@ class PassThePebbleGame(Game):
 
         self.pass_count += 1
         if self.pass_count >= self.max_passes:
-            self.winner = client_id
+            self.winner = self.players[self.current_index].display_name
         else:
             for _ in range(len(self.players)):
                 self.current_index = (self.current_index + 1) % len(self.players)
+                print(f"{self.current_index=}")
                 if self.players[self.current_index].client_id:
                     break
             else:

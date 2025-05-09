@@ -12,7 +12,7 @@
     <h2>Create Game</h2>
     <label>Game Type:</label><br>
     <label><input type="radio" name="gameType" value="pass_the_pebble" checked> Pass the Pebble</label><br>
-    <label>Number of Players: <input type="number" id="numPlayers" value="2" min="2" max="6"></label>
+    <label>Number of Players: <input type="number" id="numPlayers" value="2" min="2" max="10"></label>
     <button onclick="createGame()">Create Game</button>
     </div>
     <div id="gameCodeDisplay"></div>
@@ -169,7 +169,8 @@
 
         function renderPlayerButtons(gameState, mySlot) {
             btn = document.getElementById("takeTurnButton");
-            if (mySlot == gameState.current_holder_index) {
+            
+            if (mySlot == gameState.current_holder_index && !gameState.is_game_over) {
                 btn.disabled = false;
             } else {
                 btn.disabled = true;
@@ -234,7 +235,12 @@
 
         function updateGameState(data) {
             gs = document.getElementById("gameState");
-            gs.textContent = JSON.stringify(data.public_state);
+            if (data.final_result !== null) {
+                gs.textContent = "Game over! " + JSON.stringify(data.final_result);
+            }
+            else {
+                gs.textContent = JSON.stringify(data.public_state);
+            }
         }
 
         function updatePlayerName(slot, name) {

@@ -83,6 +83,10 @@ class Room(dict):
         await self.broadcast_slots()
 
     async def release_slot(self, client_id: str) -> bool:
+        if client_id == self.game.get_current_player():
+            print("current player released slot!")
+            self.game.submit_action(client_id, {"action": "pass"})
+
         if self.game.manager == client_id:
             self.game.manager = None
             await self.broadcast({"info": "There is no manager"})
@@ -231,6 +235,7 @@ async def game_ws(websocket: WebSocket, code: str):
         await room.release_slot(client_id)
         if room:
             await room.broadcast_slots()
+            await send_game_state(room)
         else:
             del room
 
