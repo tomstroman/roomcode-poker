@@ -1,3 +1,4 @@
+import logging
 import os
 import random
 import string
@@ -15,7 +16,7 @@ from app.game.pass_pebble import PassThePebbleGame
 
 router = APIRouter()
 
-# Global in-memory game storage
+logger = logging.getLogger()
 
 
 class Room(dict):
@@ -39,21 +40,21 @@ class Room(dict):
 
     def slot_availability(self) -> Dict[int, bool]:
         return {
-            slot_id: client_id is None
-            for slot_id, client_id in self.game.players.items()
+            slot_id: player.client_id is None
+            for slot_id, player in self.game.players.items()
         }
 
     def slots_by_client(self) -> Dict[str, int]:
         return {
-            client_id: slot_id
-            for slot_id, client_id in self.game.players.items()
-            if client_id is not None
+            player.client_id: slot_id
+            for slot_id, player in self.game.players.items()
+            if player.client_id is not None
         }
 
     def player_names(self) -> Dict[int, Optional[str]]:
         return {
-            slot_id: (f"Player {slot_id}" if client_id is not None else None)
-            for slot_id, client_id in self.game.players.items()
+            slot_id: (player.display_name if player.client_id is not None else None)
+            for slot_id, player in self.game.players.items()
         }
 
     def common_payload(self):
@@ -79,18 +80,25 @@ class Room(dict):
         await self.broadcast_personalized(self.common_payload(), personal)
 
     async def claim_slot(self, slot_id: int, client_id: str) -> None:
-        self.game.players[slot_id] = client_id
+        self.game.players[slot_id].set_client_id(client_id)
         await self.broadcast_slots()
 
     async def release_slot(self, client_id: str) -> bool:
-        if self.game.manager == client_id:
-            self.game.manager = None
-            await self.broadcast({"info": "There is no manager"})
         slots_by_client = self.slots_by_client()
         if (client_slot := slots_by_client.get(client_id)) is None:
             return False
 
-        self.game.players[client_slot] = None
+        current_player_client_id = self.game.get_current_player()
+
+        self.game.players[client_slot].set_client_id(None)
+
+        if client_id == current_player_client_id:
+            logger.info("current player released slot! Taking 'pass' action.")
+            self.game.submit_action(
+                client_id,
+                {"action": "pass"},
+                force_turn_for_client=current_player_client_id,
+            )
 
         await self.broadcast_slots()
         return True
@@ -106,6 +114,10 @@ class Room(dict):
             await conn.send_json({"info": "You are the manager"})
             return True
         return False
+
+    async def release_manager(self):
+        self.game.manager = None
+        await self.broadcast({"info": "There is no manager"})
 
 
 rooms: Dict[str, Room] = dict()  # { code: {player_id: websocket} }
@@ -163,6 +175,7 @@ async def game_ws(websocket: WebSocket, code: str):
         return
 
     client_id = str(uuid.uuid4())[:8]
+    logger.info("WebSocket client_id=%s connected at %s", client_id, websocket.client)
     room[client_id] = websocket
 
     game = room.game
@@ -184,48 +197,89 @@ async def game_ws(websocket: WebSocket, code: str):
 
     try:
         while True:
-            data = await websocket.receive_json()
-            action = data.get("action")
+            try:
+                data = await websocket.receive_json()
+                action = data.get("action")
 
-            if action == "claim_slot":
-                slot = data["slot"]
-                if game.players.get(slot) is None:
-                    await room.claim_slot(slot, client_id)
-                else:
-                    await websocket.send_json({"error": f"Slot {slot} already claimed"})
+                if action == "claim_slot":
+                    slot = data["slot"]
+                    if game.players[slot].client_id is None:
+                        logger.info("client_id=%s claiming slot %s", client_id, slot)
+                        await room.claim_slot(slot, client_id)
+                    else:
+                        await websocket.send_json(
+                            {"error": f"Slot {slot} already claimed"}
+                        )
 
-            elif action == "claim_manager":
-                if not await room.set_manager(client_id, websocket):
-                    await websocket.send_json({"error": "Could not claim manager"})
+                elif action == "update_name":
+                    player = game.players[(slot := data["slot"])]
+                    if player.client_id == client_id:
+                        logger.info(
+                            "client_id=%s (slot %s) updating name from %s to %s",
+                            client_id,
+                            slot,
+                            player.display_name,
+                            (name := data["name"]),
+                        )
+                        player.set_display_name(name)
+                        await room.broadcast_slots()
+                    else:
+                        await websocket.send_json(
+                            {"error": f"Cannot change name for {slot=}"}
+                        )
 
-            elif action == "release_slot":
-                if not await room.release_slot(client_id):
-                    await websocket.send_json(
-                        {"error": "No slot associated with client"}
-                    )
+                elif action == "claim_manager":
+                    logger.info("client_id=%s attempting to claim manager", client_id)
+                    if not await room.set_manager(client_id, websocket):
+                        logger.info("client_id=%s unable to claim manager", client_id)
+                        await websocket.send_json({"error": "Could not claim manager"})
 
-            elif action == "start_game":
-                if client_id == game.manager:
-                    # game.start_game()
-                    for conn in room.values():
-                        await conn.send_json({"info": "Game started"})
-            elif action == "take_turn":
-                game.submit_action(client_id, data["turn"])
+                elif action == "release_slot":
+                    if not await room.release_slot(client_id):
+                        await websocket.send_json(
+                            {"error": "No slot associated with client"}
+                        )
+                    else:
+                        await send_game_state(room)
 
-                # Notify all connected players of the new state
-                await send_game_state(game, code)
+                elif action == "start_game":
+                    if client_id == game.manager:
+                        try:
+                            game.start_game()
+                            await room.broadcast({"info": "Game started"})
+                            await send_game_state(room)
+                        except ValueError as exc:
+                            await websocket.send_json({"error": f"{exc}"})
+
+                elif action == "take_turn":
+                    game.submit_action(client_id, data["turn"])
+
+                    # Notify all connected players of the new state
+                    await send_game_state(room)
+            except Exception as exc:
+                if isinstance(exc, WebSocketDisconnect):
+                    raise
+                logger.exception("Error handling WebSocket message: %r", exc)
+                await websocket.send_json(
+                    {"error": "Server error while handling your action"}
+                )
 
     except WebSocketDisconnect:
+        logger.info("client_id=%s disconnected from room %s!", client_id, room.code)
         del room[client_id]
         await room.release_slot(client_id)
         if room:
+            if game.manager == client_id:
+                room.release_manager()
             await room.broadcast_slots()
+            await send_game_state(room)
         else:
             del room
 
 
-async def send_game_state(game: Game, code: str):
-    for pid, ws in rooms[code].items():
+async def send_game_state(room: Room):
+    game = room.game
+    for pid, ws in room.items():
         if ws.application_state != WebSocketState.CONNECTED:
             continue
         await ws.send_json(

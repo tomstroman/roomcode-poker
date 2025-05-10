@@ -5,12 +5,25 @@ from typing import Any, Dict, List, Optional, TypedDict
 from fastapi import WebSocket
 from pydantic import BaseModel
 
-from app.player import Player
+from app.player import Player as LegacyPlayer
+
+
+class Player:
+    def __init__(self, slot_index: int):
+        self.slot_index: int = slot_index
+        self.display_name: str = f"Player {slot_index}"
+        self.client_id: Optional[str] = None
+
+    def set_display_name(self, display_name: str):
+        self.display_name = display_name
+
+    def set_client_id(self, client_id: Optional[str]):
+        self.client_id = client_id
 
 
 @dataclass
 class Game(ABC):
-    players: Dict[int, Optional[str]] = field(default_factory=dict)
+    players: Dict[int, Player] = field(default_factory=dict)
     manager: Optional[str] = field(default_factory=str)
 
     @abstractmethod
@@ -18,11 +31,13 @@ class Game(ABC):
         pass
 
     @abstractmethod
-    def get_private_state(self, player_id: str) -> dict:
+    def get_private_state(self, client_id: str) -> dict:
         pass
 
     @abstractmethod
-    def submit_action(self, player_id: str, action: dict) -> None:
+    def submit_action(
+        self, client_id: str, action: dict, force_turn_for_client: Optional[str] = None
+    ) -> None:
         pass
 
     @abstractmethod
@@ -35,6 +50,10 @@ class Game(ABC):
 
     @abstractmethod
     def get_final_result(self) -> dict:
+        pass
+
+    @abstractmethod
+    def start_game(self) -> dict:
         pass
 
 
@@ -59,7 +78,7 @@ class LegacyGame:
 
     def __init__(self):
         self.clients: Dict[str, WebSocket] = {}
-        self.players: Dict[str, Player] = {}
+        self.players: Dict[str, LegacyPlayer] = {}
         self.stack_size = None
         self.game_state: GameState
 
@@ -74,7 +93,7 @@ class LegacyGame:
         if player_id in self.players:
             self.players[player_id].reconnect()
         else:
-            self.players[player_id] = Player(player_id, self.stack_size)
+            self.players[player_id] = LegacyPlayer(player_id, self.stack_size)
 
         self.clients[player_id] = websocket
         self.update_game_state_players()
@@ -105,7 +124,7 @@ class PokerTable(LegacyGame):
         self.stack_size = stack_size
         self.game_state: GameState = {
             "stack_size": stack_size,
-            "players": {},  # Will be populated from Player instances
+            "players": {},  # Will be populated from LegacyPlayer instances
             "actions": [],
         }
 

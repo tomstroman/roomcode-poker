@@ -12,10 +12,11 @@
     <h2>Create Game</h2>
     <label>Game Type:</label><br>
     <label><input type="radio" name="gameType" value="pass_the_pebble" checked> Pass the Pebble</label><br>
-    <label>Number of Players: <input type="number" id="numPlayers" value="2" min="2" max="6"></label>
+    <label>Number of Players: <input type="number" id="numPlayers" value="2" min="2" max="10"></label>
     <button onclick="createGame()">Create Game</button>
     </div>
     <div id="gameCodeDisplay"></div>
+    <div id="gameState"></div>
 
     <!-- Join Game -->
     <div id="joinGame">
@@ -39,7 +40,10 @@
     <!-- Game Control -->
     <div id="managerControls" style="display:none;">
         <h3>Game Controls</h3>
-        <button onclick="startGame()">Start Game</button>
+        <button id="startGameButton" onclick="startGame()">Start Game</button>
+    </div>
+    <div id="playerControls" style="display:none;">
+        <button id="takeTurnButton" onclick="takeTurn()">Pass pebble</button>
     </div>
 
     <pre id="output"></pre>
@@ -110,6 +114,16 @@
                     document.getElementById("managerClaimSection").style.display = "none";
                 }
 
+                if (data.info && data.info.includes("Game started")) {
+                    document.getElementById("startGameButton").disabled = true;
+                    document.getElementById("playerControls").style.display = "block";
+                }
+
+                if (data.public_state) {
+                    updateGameState(data);
+                    renderPlayerButtons(data.public_state, mySlot);
+                }
+
                 updateTitle(code, isManager, mySlot);
 
             };
@@ -145,12 +159,22 @@
                 if (mySlot === index) {
                     const nameInput = document.createElement("input");
                     nameInput.type = "text";
-                    nameInput.onchange = () => updatePlayerName(nameInput.value);
+                    nameInput.onchange = () => updatePlayerName(mySlot, nameInput.value);
                     wrapper.appendChild(nameInput);
                 }
                 container.appendChild(wrapper);
             });
             document.getElementById("slotClaimSection").style.display = "block";
+        }
+
+        function renderPlayerButtons(gameState, mySlot) {
+            btn = document.getElementById("takeTurnButton");
+            
+            if (mySlot == gameState.current_holder_index && !gameState.is_game_over) {
+                btn.disabled = false;
+            } else {
+                btn.disabled = true;
+            }
         }
 
         function claimSlot(slot) {
@@ -200,6 +224,28 @@
         function claimManager() {
             if (socket && socket.readyState === WebSocket.OPEN) {
                 socket.send(JSON.stringify({ action: "claim_manager" }));
+            }
+        }
+
+        function takeTurn() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ action: "take_turn", turn: {action: "pass"} }));
+            }
+        }
+
+        function updateGameState(data) {
+            gs = document.getElementById("gameState");
+            if (data.final_result !== null) {
+                gs.textContent = "Game over! " + JSON.stringify(data.final_result);
+            }
+            else {
+                gs.textContent = JSON.stringify(data.public_state);
+            }
+        }
+
+        function updatePlayerName(slot, name) {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ action: "update_name", slot, name }));
             }
         }
                 
