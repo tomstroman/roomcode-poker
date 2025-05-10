@@ -1,6 +1,9 @@
+import logging
 from typing import Dict, Optional
 
 from .base import Game, Player
+
+logger = logging.getLogger()
 
 
 class PassThePebbleGame(Game):
@@ -32,9 +35,14 @@ class PassThePebbleGame(Game):
     def get_private_state(self, client_id: str) -> dict:
         return {}
 
-    def submit_action(self, client_id: str, action: dict) -> None:
+    def submit_action(
+        self, client_id: str, action: dict, force_turn_for_client: Optional[str] = None
+    ) -> None:
         if client_id != self.players[self.current_index].client_id:
-            raise ValueError("Not your turn!")
+            if force_turn_for_client is not None and client_id == force_turn_for_client:
+                logger.info("Forcing turn for client_id=%s", client_id)
+            else:
+                raise ValueError("Not your turn!")
 
         if action.get("action") != "pass":
             raise ValueError("Invalid action")
@@ -45,8 +53,8 @@ class PassThePebbleGame(Game):
         else:
             for _ in range(len(self.players)):
                 self.current_index = (self.current_index + 1) % len(self.players)
-                print(f"{self.current_index=}")
                 if self.players[self.current_index].client_id:
+                    logger.info("Next player: %s", self.current_index)
                     break
             else:
                 raise ValueError("No players!")
@@ -63,4 +71,8 @@ class PassThePebbleGame(Game):
         return {}
 
     def start_game(self) -> dict:
+        num = sum(1 for p in self.players.values() if p.client_id is not None)
+        if num == 0:
+            raise ValueError("Cannot start game with no players")
+        logger.info("Game starting with %s players", num)
         return self.get_public_state()

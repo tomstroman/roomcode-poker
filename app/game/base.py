@@ -35,7 +35,9 @@ class Game(ABC):
         pass
 
     @abstractmethod
-    def submit_action(self, client_id: str, action: dict) -> None:
+    def submit_action(
+        self, client_id: str, action: dict, force_turn_for_client: Optional[str] = None
+    ) -> None:
         pass
 
     @abstractmethod
