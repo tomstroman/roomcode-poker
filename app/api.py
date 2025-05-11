@@ -64,6 +64,15 @@ async def play_pass_the_pebble(request: Request):
     return FileResponse(file_path)
 
 
+async def claim_slot(ctx: dict):
+    slot = ctx["data"]["slot"]
+    if ctx["room"].game.players[slot].client_id is None:
+        logger.info("client_id=%s claiming slot %s", ctx["client_id"], slot)
+        await ctx["room"].claim_slot(slot, ctx["client_id"])
+    else:
+        await ctx["ws"].send_json({"error": f"Slot {slot} already claimed"})
+
+
 @router.websocket("/ws/{code}/")
 async def game_ws(websocket: WebSocket, code: str):
     await websocket.accept()
@@ -97,17 +106,11 @@ async def game_ws(websocket: WebSocket, code: str):
         while True:
             try:
                 data = await websocket.receive_json()
+                context = dict(ws=websocket, room=room, client_id=client_id, data=data)
                 action = data.get("action")
 
                 if action == "claim_slot":
-                    slot = data["slot"]
-                    if game.players[slot].client_id is None:
-                        logger.info("client_id=%s claiming slot %s", client_id, slot)
-                        await room.claim_slot(slot, client_id)
-                    else:
-                        await websocket.send_json(
-                            {"error": f"Slot {slot} already claimed"}
-                        )
+                    await claim_slot(context)
 
                 elif action == "update_name":
                     player = game.players[(slot := data["slot"])]
@@ -168,7 +171,7 @@ async def game_ws(websocket: WebSocket, code: str):
         await room.release_slot(client_id)
         if room:
             if game.manager == client_id:
-                room.release_manager()
+                await room.release_manager()
             await room.broadcast_slots()
             await send_game_state(room)
         else:
