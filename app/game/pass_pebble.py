@@ -20,6 +20,7 @@ class PassThePebbleGame(Game):
     def __init__(self, players: int):
         self.players: Dict[int, Player] = {i: Player(i) for i in range(players)}
         self.manager: Optional[str] = None
+        self.is_started: bool = False
         self.current_index = 0
         self.pass_count = 0
         self.max_passes = 5
@@ -75,4 +76,5 @@ class PassThePebbleGame(Game):
         if num == 0:
             raise ValueError("Cannot start game with no players")
         logger.info("Game starting with %s players", num)
+        self.is_started = True
         return self.get_public_state()

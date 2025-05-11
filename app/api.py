@@ -137,7 +137,7 @@ async def game_ws(websocket: WebSocket, code: str):
                         await websocket.send_json(
                             {"error": "No slot associated with client"}
                         )
-                    else:
+                    elif game.is_started:
                         await send_game_state(room)
 
                 elif action == "start_game":

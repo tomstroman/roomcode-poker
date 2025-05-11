@@ -25,6 +25,7 @@ class Player:
 class Game(ABC):
     players: Dict[int, Player] = field(default_factory=dict)
     manager: Optional[str] = field(default_factory=str)
+    is_started: bool = field(default_factory=bool)
 
     @abstractmethod
     def get_public_state(self) -> dict:

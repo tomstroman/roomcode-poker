@@ -82,7 +82,7 @@ class Room(dict):
 
         self.game.players[client_slot].set_client_id(None)
 
-        if client_id == current_player_client_id:
+        if self.game.is_started and client_id == current_player_client_id:
             logger.info("current player released slot! Taking 'pass' action.")
             self.game.submit_action(
                 client_id,
