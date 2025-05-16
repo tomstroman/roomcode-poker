@@ -82,8 +82,6 @@ async def game_ws(websocket: WebSocket, code: str):
         await room.set_manager(client_id, websocket)
 
     await room.broadcast_slots()
-    #    for conn in room.values():
-    #        await conn.send_json({"num_connections": len(connections[code])})
 
     await websocket.send_json(
         {
