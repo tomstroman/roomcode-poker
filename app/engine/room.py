@@ -3,6 +3,7 @@ from copy import deepcopy
 from typing import Any, Callable, Dict, Optional
 
 from fastapi import WebSocket
+from fastapi.websockets import WebSocketState
 
 from app.game.base import Game
 
@@ -108,3 +109,20 @@ class Room(dict):
     async def release_manager(self):
         self.game.manager = None
         await self.broadcast({"info": "There is no manager"})
+
+    async def send_game_state(self):
+        game = self.game
+        for pid, ws in self.items():
+            if ws.application_state != WebSocketState.CONNECTED:
+                continue
+            await ws.send_json(
+                {
+                    "public_state": game.get_public_state(),
+                    "private_state": game.get_private_state(pid),
+                    "your_turn": game.get_current_player() == pid,
+                    "is_over": game.is_game_over(),
+                    "final_result": (
+                        game.get_final_result() if game.is_game_over() else None
+                    ),
+                }
+            )

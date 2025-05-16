@@ -7,7 +7,6 @@ from typing import Dict
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
-from fastapi.websockets import WebSocketState
 from pydantic import BaseModel
 
 from app.engine.room import Room
@@ -104,7 +103,7 @@ async def release_slot(ctx: dict):
     if not await room.release_slot(ctx["client_id"]):
         await ctx["ws"].send_json({"error": "No slot associated with client"})
     elif room.game.is_started:
-        await send_game_state(room)
+        await room.send_game_state()
 
 
 async def start_game(ctx: dict):
@@ -113,7 +112,7 @@ async def start_game(ctx: dict):
         try:
             room.game.start_game()
             await room.broadcast({"info": "Game started"})
-            await send_game_state(room)
+            await room.send_game_state()
         except ValueError as exc:
             await ctx["ws"].send_json({"error": f"{exc}"})
 
@@ -123,7 +122,7 @@ async def take_turn(ctx: dict):
     room.game.submit_action(ctx["client_id"], ctx["data"]["turn"])
 
     # Notify all connected players of the new state
-    await send_game_state(room)
+    await room.send_game_state()
 
 
 @router.websocket("/ws/{code}/")
@@ -196,24 +195,6 @@ async def game_ws(websocket: WebSocket, code: str):
             if game.manager == client_id:
                 await room.release_manager()
             await room.broadcast_slots()
-            await send_game_state(room)
+            await room.send_game_state()
         else:
             del room
-
-
-async def send_game_state(room: Room):
-    game = room.game
-    for pid, ws in room.items():
-        if ws.application_state != WebSocketState.CONNECTED:
-            continue
-        await ws.send_json(
-            {
-                "public_state": game.get_public_state(),
-                "private_state": game.get_private_state(pid),
-                "your_turn": game.get_current_player() == pid,
-                "is_over": game.is_game_over(),
-                "final_result": (
-                    game.get_final_result() if game.is_game_over() else None
-                ),
-            }
-        )
