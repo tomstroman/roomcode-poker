@@ -1,4 +1,5 @@
 black
+httpx
 isort
 flake8
 mypy
