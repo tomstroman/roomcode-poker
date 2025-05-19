@@ -4,5 +4,6 @@ isort
 flake8
 mypy
 pytest
+pytest-asyncio
 pre-commit
 pytest-cov
