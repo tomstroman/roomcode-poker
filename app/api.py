@@ -44,19 +44,6 @@ async def create_game(request: CreateGameRequest) -> dict:
     return {"code": code}
 
 
-@router.get("/game-state/{code}/")
-async def game_state(code: str):
-    if code not in rooms:
-        raise HTTPException(status_code=404, detail="Game not found")
-
-    game = rooms[code].game
-    return {
-        "public_state": game.get_public_state(),
-        "is_over": game.is_game_over(),
-        "final_result": game.get_final_result() if game.is_game_over() else None,
-    }
-
-
 # Basic UI page
 @router.get("/play/pass-the-pebble/", response_class=HTMLResponse)
 async def play_pass_the_pebble(request: Request):

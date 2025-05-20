@@ -5,7 +5,7 @@ from app.main import fastapi_app as app
 
 def test_app_instance__no_code():
     client = TestClient(app)
-    response = client.get("/game_state/foo/")
+    response = client.get("/foo/")
     assert response.status_code == 404
 
 
