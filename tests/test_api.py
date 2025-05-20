@@ -8,11 +8,6 @@ from app.api import generate_code, rooms
 from app.main import fastapi_app as app
 
 
-@pytest.fixture(autouse=True)
-def clear_rooms():
-    rooms.clear()
-
-
 @pytest.fixture
 def async_client():
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
@@ -33,8 +28,10 @@ async def test_create_game_success(async_client):
     assert response.status_code == status.HTTP_200_OK
     data = response.json()
     assert "code" in data
-    assert isinstance(data["code"], str)
-    assert len(data["code"]) > 0
+    assert isinstance((code := data["code"]), str)
+    assert len(code) > 0
+    assert code in rooms
+    print(type(rooms[code].game))
 
 
 @pytest.mark.asyncio
