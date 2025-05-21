@@ -63,13 +63,6 @@ async def game_ws(websocket: WebSocket, code: str):
     logger.info("WebSocket client_id=%s connected at %s", client_id, websocket.client)
     room[client_id] = websocket
 
-    game = room.game
-
-    if not game.manager:
-        await room.set_manager(client_id, websocket)
-
-    await room.broadcast_slots()
-
     await websocket.send_json(
         {
             "client_id": client_id,
@@ -77,6 +70,13 @@ async def game_ws(websocket: WebSocket, code: str):
             "my_slot": None,
         }
     )
+
+    game = room.game
+
+    if not game.manager:
+        await room.set_manager(client_id, websocket)
+
+    await room.broadcast_slots()
 
     try:
         while True:
@@ -94,10 +94,16 @@ async def game_ws(websocket: WebSocket, code: str):
             except Exception as exc:
                 if isinstance(exc, WebSocketDisconnect):
                     raise
+                elif isinstance(exc, RuntimeError) and "got 'websocket.close'" in str(
+                    exc
+                ):
+                    raise WebSocketDisconnect
+
                 logger.exception("Error handling WebSocket message: %r", exc)
                 await websocket.send_json(
                     {"error": "Server error while handling your action"}
                 )
+                raise
 
     except WebSocketDisconnect:
         logger.info("client_id=%s disconnected from room %s!", client_id, room.code)

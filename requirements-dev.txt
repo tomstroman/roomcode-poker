@@ -1,5 +1,6 @@
 black
 httpx
+httpx_ws
 isort
 flake8
 mypy

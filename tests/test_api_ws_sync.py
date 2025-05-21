@@ -20,8 +20,11 @@ def test_ws_first_client_connect(trivial_room):
     assert not room.items()
     with client.websocket_connect(f"/ws/{room.code}/") as ws:
         message = ws.receive_json()
-        assert len(room.items()) == 1
         client_id = list(room.keys())[0]
+        assert message["client_id"] == client_id
+
+        message = ws.receive_json()
+        assert len(room.items()) == 1
         # These details come from room.set_manager behavior - change?
         assert message.get("info") == "A spectator is the manager now"
         message = ws.receive_json()
@@ -30,9 +33,6 @@ def test_ws_first_client_connect(trivial_room):
         # From room.broadcast_slots()
         assert message["my_slot"] is None
         assert message["available_slots"] == {"0": True}
-
-        message = ws.receive_json()
-        assert message["client_id"] == client_id
 
 
 def test_ws_second_client_connect(trivial_room):
@@ -50,6 +50,6 @@ def test_ws_second_client_connect(trivial_room):
             assert len(client_ids) == 2
             client_ids.remove(client_id_1)
             client_id_2 = client_ids[0]
-            assert message.get("available_slots") == {"0": True}
-            message = ws_2.receive_json()
             assert message["client_id"] == client_id_2
+            message = ws_2.receive_json()
+            assert message.get("available_slots") == {"0": True}
