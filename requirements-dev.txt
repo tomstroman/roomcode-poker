@@ -1,7 +1,10 @@
 black
+httpx
+httpx_ws
 isort
 flake8
 mypy
 pytest
+pytest-asyncio
 pre-commit
 pytest-cov
