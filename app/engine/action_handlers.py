@@ -73,3 +73,13 @@ ACTION_HANDLERS = {
     "release_slot": release_slot,
     "start_game": start_game,
 }
+
+
+async def handle_ws_message(context: dict):
+    action = context["data"].get("action")
+    logger.info("client %s sent action %s", context["client_id"], action)
+
+    if (handler := ACTION_HANDLERS.get(action)) is None:
+        await context["ws"].send_json({"error": f"Unknown action: {action}"})
+    else:
+        await handler(context)
