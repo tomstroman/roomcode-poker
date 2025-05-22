@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisco
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
-from app.engine.action_handlers import ACTION_HANDLERS
+from app.engine.action_handlers import handle_ws_message
 from app.engine.room import Room
 from app.game.pass_pebble import PassThePebbleGame
 
@@ -83,13 +83,7 @@ async def game_ws(websocket: WebSocket, code: str):
             try:
                 data = await websocket.receive_json()
                 context = dict(ws=websocket, room=room, client_id=client_id, data=data)
-                action = data.get("action")
-                logger.info("client %s sent action %s", client_id, action)
-
-                if (handler := ACTION_HANDLERS.get(action)) is None:
-                    await websocket.send_json({"error": f"Unknown action: {action}"})
-                else:
-                    await handler(context)
+                await handle_ws_message(context)
 
             except Exception as exc:
                 if isinstance(exc, WebSocketDisconnect):
@@ -103,7 +97,6 @@ async def game_ws(websocket: WebSocket, code: str):
                 await websocket.send_json(
                     {"error": "Server error while handling your action"}
                 )
-                raise
 
     except WebSocketDisconnect:
         logger.info("client_id=%s disconnected from room %s!", client_id, room.code)
