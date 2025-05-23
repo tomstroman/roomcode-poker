@@ -1,4 +1,5 @@
-from typing import Dict, Optional
+from copy import deepcopy
+from typing import Any, Dict, List, Optional
 
 import pytest
 
@@ -52,3 +53,23 @@ def trivial_room(trivial_game):
 @pytest.fixture(autouse=True)
 def clear_rooms():
     rooms.clear()
+
+
+class FakeWebSocket:
+    def __init__(self):
+        self.sent_messages: List[Dict[str, Any]] = []
+        self.next_message: Dict[str, Any] = {"action": "claim_slot", "slot_id": 0}
+
+    def stage_next_message(self, message: Dict[str, Any]):
+        self.next_message = deepcopy(message)
+
+    async def send_json(self, data: Dict[str, Any]):
+        self.sent_messages.append(data)
+
+    async def receive_json(self) -> Dict[str, Any]:
+        return self.next_message
+
+
+@pytest.fixture
+def websocket():
+    return FakeWebSocket()
