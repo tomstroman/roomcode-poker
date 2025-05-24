@@ -2,6 +2,7 @@ from copy import deepcopy
 from typing import Any, Dict, List, Optional
 
 import pytest
+from fastapi.websockets import WebSocketState
 
 from app.api import rooms
 from app.engine.room import Room
@@ -59,6 +60,7 @@ class FakeWebSocket:
     def __init__(self):
         self.sent_messages: List[Dict[str, Any]] = []
         self.next_message: Dict[str, Any] = {"action": "claim_slot", "slot_id": 0}
+        self.application_state = WebSocketState.CONNECTED
 
     def stage_next_message(self, message: Dict[str, Any]):
         self.next_message = deepcopy(message)
