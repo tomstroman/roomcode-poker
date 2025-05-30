@@ -14,8 +14,21 @@ from app.engine.action_handlers import (
 )
 
 
-async def test_claim_manager__succeeds_when_available(trivial_room, websocket):
+@pytest.mark.parametrize(
+    "player_slot,manager",
+    [
+        (None, "A spectator"),
+        (0, "Player 0"),
+    ],
+)
+async def test_claim_manager__succeeds_when_available(
+    trivial_room, websocket, player_slot, manager
+):
     CLIENT_ID = "testclient"
+    trivial_room[CLIENT_ID] = websocket
+
+    if player_slot is not None:
+        trivial_room.game.players[player_slot].client_id = CLIENT_ID
     context = {
         "ws": websocket,
         "client_id": CLIENT_ID,
@@ -26,6 +39,8 @@ async def test_claim_manager__succeeds_when_available(trivial_room, websocket):
     assert trivial_room.game.manager == CLIENT_ID
     assert len(msgs := websocket.sent_messages) > 0
     assert not any("error" in msg.keys() for msg in msgs)
+    print(msgs)
+    assert any(f"{manager} is the manager" in msg.get("info") for msg in msgs)
 
 
 async def test_claim_manager__errors_when_claimed(trivial_room, websocket):
@@ -150,10 +165,8 @@ async def test_start_game__as_manager__already_started_error(trivial_room, webso
     }
     await start_game(context)
     assert trivial_room.game.is_started
-    # TODO: improve room-level handling of game start
-    # to prevent multiple starts
-    # assert len(msgs := websocket.sent_messages) == 1
-    # assert msgs[0].get("error") == "Game already started"
+    assert len(msgs := websocket.sent_messages) == 1
+    assert msgs[0].get("error") == "Game already started"
 
 
 async def test_start_game__errors_when_not_manager(trivial_room, websocket):
@@ -168,9 +181,8 @@ async def test_start_game__errors_when_not_manager(trivial_room, websocket):
     }
     await start_game(context)
     assert not trivial_room.game.is_started
-    # TODO: add rejection of non-manager start attempts
-    # assert len(msgs := websocket.sent_messages) == 1
-    # assert msgs[0].get("error") == "Only the manager can start the game"
+    assert len(msgs := websocket.sent_messages) == 1
+    assert msgs[0].get("error") == "Only the manager can start the game"
 
 
 async def test_start_game__errors_on_exception(trivial_room, websocket):
