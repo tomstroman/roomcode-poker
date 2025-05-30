@@ -20,15 +20,6 @@ class Room(dict):
         for conn in self.values():
             await conn.send_json(message)
 
-    async def broadcast_connections(self):
-        num_conn = len(self)
-        await self.broadcast(
-            {
-                "num_connections": num_conn,
-                "available_slots": self.slot_availability(),
-            }
-        )
-
     def slot_availability(self) -> Dict[int, bool]:
         return {
             slot_id: player.client_id is None
@@ -126,3 +117,18 @@ class Room(dict):
                     ),
                 }
             )
+
+    async def start_game(self, client_id: str, conn: WebSocket) -> bool:
+        game = self.game
+        if game.manager != client_id:
+            await conn.send_json({"error": "Only the manager can start the game"})
+            return False
+
+        if game.is_started:
+            await conn.send_json({"error": "Game already started"})
+            return False
+
+        game.start_game()
+        await self.broadcast({"info": "Game started"})
+        await self.send_game_state()
+        return True

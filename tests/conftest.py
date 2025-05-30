@@ -14,6 +14,7 @@ class TrivialGame(Game):
         self.players: Dict[int, Player] = {i: Player(i) for i in range(players)}
         self.manager: Optional[str] = None
         self.is_started: bool = False
+        self.current_index: int = 0
 
     def get_public_state(self) -> dict:
         return {}
@@ -27,7 +28,7 @@ class TrivialGame(Game):
         pass
 
     def get_current_player(self) -> Optional[str]:
-        pass
+        return self.players[self.current_index].client_id
 
     def is_game_over(self) -> bool:
         return False

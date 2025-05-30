@@ -48,13 +48,10 @@ async def release_slot(ctx: dict):
 
 async def start_game(ctx: dict):
     room = ctx["room"]
-    if ctx["client_id"] == room.game.manager:
-        try:
-            room.game.start_game()
-            await room.broadcast({"info": "Game started"})
-            await room.send_game_state()
-        except ValueError as exc:
-            await ctx["ws"].send_json({"error": f"{exc}"})
+    try:
+        await room.start_game(ctx["client_id"], ctx["ws"])
+    except ValueError as exc:
+        await ctx["ws"].send_json({"error": f"{exc}"})
 
 
 async def take_turn(ctx: dict):
