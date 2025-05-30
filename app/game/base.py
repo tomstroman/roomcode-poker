@@ -24,30 +24,30 @@ class Game(ABC):
 
     @abstractmethod
     def get_public_state(self) -> dict:
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def get_private_state(self, client_id: str) -> dict:
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def submit_action(
         self, client_id: str, action: dict, force_turn_for_client: Optional[str] = None
     ) -> None:
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def get_current_player(self) -> Optional[str]:
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def is_game_over(self) -> bool:
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def get_final_result(self) -> dict:
-        pass
+        pass  # pragma: no cover
 
     @abstractmethod
     def start_game(self) -> dict:
-        pass
+        pass  # pragma: no cover
