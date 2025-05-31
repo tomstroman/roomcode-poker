@@ -42,9 +42,7 @@
         <h3>Game Controls</h3>
         <button id="startGameButton" onclick="startGame()">Start Game</button>
     </div>
-    <div id="playerControls" style="display:none;">
-        <button id="takeTurnButton" onclick="takeTurn()">Pass pebble</button>
-    </div>
+    <div id="playerControls" style="display:none;"></div>
 
     <pre id="output"></pre>
 
@@ -121,7 +119,10 @@
 
                 if (data.public_state) {
                     updateGameState(data);
-                    renderPlayerButtons(data.public_state, mySlot);
+                }
+
+                if (data.private_state) {
+                    renderPlayerButtons(data, mySlot);
                 }
 
                 updateTitle(code, isManager, mySlot);
@@ -168,13 +169,33 @@
         }
 
         function renderPlayerButtons(gameState, mySlot) {
-            btn = document.getElementById("takeTurnButton");
-            
-            if (mySlot == gameState.current_holder_index && !gameState.is_game_over) {
-                btn.disabled = false;
-            } else {
-                btn.disabled = true;
+            const div = document.getElementById("playerControls");
+            div.innerHTML = ""; // Clear previous buttons or text
+
+            const availableActions = gameState.private_state?.available_actions || {};
+
+            const msg = document.createElement("p");
+            const entries = Object.entries(availableActions);
+            if (entries.length === 0) {
+                msg.textContent = "No game actions available";
+                div.appendChild(msg);
+                div.style.display = "block";
+                return;
             }
+
+            msg.textContent = "Game actions:"
+            div.appendChild(msg)
+            entries.forEach(([action, param]) => {
+                const btn = document.createElement("button");
+                btn.textContent = action.replace(/_/g, " "); // e.g., "take_turn" → "take turn"
+                btn.onclick = () => {
+                    // For now: send action as string. In the future, can expand to include param
+                    takeTurn(action);
+                };
+                div.appendChild(btn);
+            });
+
+            div.style.display = "block";
         }
 
         function claimSlot(slot) {
@@ -227,9 +248,9 @@
             }
         }
 
-        function takeTurn() {
+        function takeTurn(turn) {
             if (socket && socket.readyState === WebSocket.OPEN) {
-                socket.send(JSON.stringify({ action: "take_turn", turn: {action: "pass"} }));
+                socket.send(JSON.stringify({ action: "take_turn", turn: {action: turn} }));
             }
         }
 

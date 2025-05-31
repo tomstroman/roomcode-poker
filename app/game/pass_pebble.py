@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from .base import Game, Player
 
@@ -34,7 +34,9 @@ class PassThePebbleGame(Game):
         }
 
     def get_private_state(self, client_id: str) -> dict:
-        return {}
+        return {
+            "available_actions": self._get_available_actions(client_id),
+        }
 
     def submit_action(
         self, client_id: str, action: dict, force_turn_for_client: Optional[str] = None
@@ -78,3 +80,10 @@ class PassThePebbleGame(Game):
         logger.info("Game starting with %s players", num)
         self.is_started = True
         return self.get_public_state()
+
+    def _get_available_actions(self, client_id: str) -> Dict[str, Any]:
+        actions: Dict[str, Any] = dict()
+        if client_id == self.players[self.current_index].client_id:
+            if not self.is_game_over():
+                actions.update({"pass": None})
+        return actions

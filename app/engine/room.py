@@ -103,20 +103,21 @@ class Room(dict):
 
     async def send_game_state(self):
         game = self.game
+        game_state = {
+            "public_state": game.get_public_state(),
+            "is_over": game.is_game_over(),
+            "final_result": (game.get_final_result() if game.is_game_over() else None),
+        }
+        current_player = game.get_current_player()
         for pid, ws in self.items():
             if ws.application_state != WebSocketState.CONNECTED:
                 continue
-            await ws.send_json(
-                {
-                    "public_state": game.get_public_state(),
-                    "private_state": game.get_private_state(pid),
-                    "your_turn": game.get_current_player() == pid,
-                    "is_over": game.is_game_over(),
-                    "final_result": (
-                        game.get_final_result() if game.is_game_over() else None
-                    ),
-                }
-            )
+            player_state = {
+                "private_state": game.get_private_state(pid),
+                "your_turn": current_player == pid,
+            }
+            game_state.update(player_state)
+            await ws.send_json(game_state)
 
     async def start_game(self, client_id: str, conn: WebSocket) -> bool:
         game = self.game
