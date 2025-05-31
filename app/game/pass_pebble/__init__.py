@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Dict, Optional
 
-from .base import Game, Player
+from ..base import Game, Player
 
 logger = logging.getLogger()
 
@@ -47,20 +47,23 @@ class PassThePebbleGame(Game):
             else:
                 raise ValueError("Not your turn!")
 
-        if action.get("action") != "pass":
+        if (action_type := action.get("action")) not in self._get_available_actions(
+            client_id
+        ):
             raise ValueError("Invalid action")
 
-        self.pass_count += 1
-        if self.pass_count >= self.max_passes:
-            self.winner = self.players[self.current_index].display_name
-        else:
-            for _ in range(len(self.players)):
-                self.current_index = (self.current_index + 1) % len(self.players)
-                if self.players[self.current_index].client_id:
-                    logger.info("Next player: %s", self.current_index)
-                    break
+        if action_type == "pass":
+            self.pass_count += 1
+            if self.pass_count >= self.max_passes:
+                self.winner = self.players[self.current_index].display_name
             else:
-                raise ValueError("No players!")
+                for _ in range(len(self.players)):
+                    self.current_index = (self.current_index + 1) % len(self.players)
+                    if self.players[self.current_index].client_id:
+                        logger.info("Next player: %s", self.current_index)
+                        break
+                else:
+                    raise ValueError("No players!")
 
     def get_current_player(self) -> Optional[str]:
         return self.players[self.current_index].client_id
