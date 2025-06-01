@@ -1,7 +1,7 @@
 import logging
 from typing import Any, Dict, Optional
 
-from ..base import Game, Player
+from app.game.base import Game, Player
 
 logger = logging.getLogger()
 

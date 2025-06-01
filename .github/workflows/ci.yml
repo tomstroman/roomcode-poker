@@ -30,7 +30,7 @@ jobs:
         run: isort --check-only .
 
       - name: Run mypy
-        run: PYTHONPATH=app mypy .
+        run: mypy .
 
       - name: Run flake8
         run: flake8 .

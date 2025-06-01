@@ -1,5 +1,6 @@
 import pytest
-from game.pass_pebble import PassThePebbleGame
+
+from app.game.pass_pebble import PassThePebbleGame
 
 
 def test_pass_pebble__init():
