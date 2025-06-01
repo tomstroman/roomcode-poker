@@ -1,7 +1,7 @@
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
-from .base import Game, Player
+from app.game.base import Game, Player
 
 logger = logging.getLogger()
 
@@ -34,7 +34,9 @@ class PassThePebbleGame(Game):
         }
 
     def get_private_state(self, client_id: str) -> dict:
-        return {}
+        return {
+            "available_actions": self._get_available_actions(client_id),
+        }
 
     def submit_action(
         self, client_id: str, action: dict, force_turn_for_client: Optional[str] = None
@@ -45,20 +47,23 @@ class PassThePebbleGame(Game):
             else:
                 raise ValueError("Not your turn!")
 
-        if action.get("action") != "pass":
+        if (action_type := action.get("action")) not in self._get_available_actions(
+            client_id
+        ):
             raise ValueError("Invalid action")
 
-        self.pass_count += 1
-        if self.pass_count >= self.max_passes:
-            self.winner = self.players[self.current_index].display_name
-        else:
-            for _ in range(len(self.players)):
-                self.current_index = (self.current_index + 1) % len(self.players)
-                if self.players[self.current_index].client_id:
-                    logger.info("Next player: %s", self.current_index)
-                    break
+        if action_type == "pass":
+            self.pass_count += 1
+            if self.pass_count >= self.max_passes:
+                self.winner = self.players[self.current_index].display_name
             else:
-                raise ValueError("No players!")
+                for _ in range(len(self.players)):
+                    self.current_index = (self.current_index + 1) % len(self.players)
+                    if self.players[self.current_index].client_id:
+                        logger.info("Next player: %s", self.current_index)
+                        break
+                else:
+                    raise ValueError("No players!")
 
     def get_current_player(self) -> Optional[str]:
         return self.players[self.current_index].client_id
@@ -78,3 +83,10 @@ class PassThePebbleGame(Game):
         logger.info("Game starting with %s players", num)
         self.is_started = True
         return self.get_public_state()
+
+    def _get_available_actions(self, client_id: str) -> Dict[str, Any]:
+        actions: Dict[str, Any] = dict()
+        if client_id == self.players[self.current_index].client_id:
+            if not self.is_game_over():
+                actions.update({"pass": None})
+        return actions
