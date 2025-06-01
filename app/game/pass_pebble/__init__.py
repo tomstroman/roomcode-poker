@@ -41,14 +41,16 @@ class PassThePebbleGame(Game):
     def submit_action(
         self, client_id: str, action: dict, force_turn_for_client: Optional[str] = None
     ) -> None:
+        is_force_turn: bool = False
         if client_id != self.players[self.current_index].client_id:
             if force_turn_for_client is not None and client_id == force_turn_for_client:
                 logger.info("Forcing turn for client_id=%s", client_id)
+                is_force_turn = True
             else:
                 raise ValueError("Not your turn!")
 
         if (action_type := action.get("action")) not in self._get_available_actions(
-            client_id
+            client_id, is_force_turn
         ):
             raise ValueError("Invalid action")
 
@@ -84,9 +86,11 @@ class PassThePebbleGame(Game):
         self.is_started = True
         return self.get_public_state()
 
-    def _get_available_actions(self, client_id: str) -> Dict[str, Any]:
+    def _get_available_actions(
+        self, client_id: str, is_force_turn: bool = False
+    ) -> Dict[str, Any]:
         actions: Dict[str, Any] = dict()
-        if client_id == self.players[self.current_index].client_id:
+        if client_id == self.players[self.current_index].client_id or is_force_turn:
             if not self.is_game_over():
                 actions.update({"pass": None})
         return actions

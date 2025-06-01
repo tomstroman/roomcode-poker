@@ -131,3 +131,29 @@ def test_pass_pebble__submit_action__detects_winner():
     game.pass_count = 4
     game.submit_action("foo", {"action": "pass"})
     assert game.winner == PLAYER_0
+
+
+def test_pass_pebble__submit_action__force__players_remain():
+    game = PassThePebbleGame(2)
+    # player "foo" on slot 0 just disconnected
+    assert game.players[0].client_id is None
+
+    game.players[1].client_id = "bar"
+    assert game.current_index == 0
+    assert game.pass_count == 0
+
+    game.submit_action("foo", {"action": "pass"}, force_turn_for_client="foo")
+    assert game.current_index == 1
+    assert game.pass_count == 1
+
+
+def test_pass_pebble__submit_action__force__no_players_remain():
+    game = PassThePebbleGame(2)
+    assert game.players[0].client_id is None
+    assert game.players[1].client_id is None
+    assert game.current_index == 0
+    assert game.pass_count == 0
+
+    with pytest.raises(ValueError) as exc:
+        game.submit_action("foo", {"action": "pass"}, force_turn_for_client="foo")
+    assert "No players!" in str(exc)
